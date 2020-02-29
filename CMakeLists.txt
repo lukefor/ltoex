@@ -10,12 +10,11 @@ project ("ltoex")
 add_executable (
 ltoex
 "ltoex.cpp"
-"ltoex.h"
 "SLDC.cpp"
-"SLDC.h"
 "AES.cpp"
-"AES.h" 
 )
+
+set_property(TARGET ltoex PROPERTY CXX_STANDARD 17)
 
 # deps
 #if (NOT MSVC)
@@ -23,8 +22,7 @@ ltoex
 #endif()
 #add_subdirectory(external/openssl-cmake)
 
-find_package(OpenSSL REQUIRED) 
+find_package(OpenSSL REQUIRED)
 include_directories(${OPENSSL_INCLUDE_DIRS})
-link_directories(${OPENSSL_LIBRARIES})
-
-target_link_libraries(ltoex crypto ssl)
+include_directories(.)
+target_link_libraries(ltoex ${OPENSSL_LIBRARIES})
