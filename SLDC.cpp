@@ -15,7 +15,8 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
         {
             if (m_state != State::END && m_state != State::SKIP)
             {
-                printf("Went too far\n");
+                fprintf(stderr, "Went too far\n");
+                return false;
             }
             break;
         }
@@ -50,15 +51,19 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
                                 break;
                             }
                         }
+                        // for 0-3, skip a 0. 4 1's has no 0
                         i += matchSkip[pow2];
                         uint32_t base = 0;
+                        // read number of bits based on spec
                         for (uint32_t j = 0; j < matchDigits[pow2]; ++j, ++i)
                         {
                             base |= m_bitset.test(i) << (matchDigits[pow2] - (j + 1));
                         }
+                        // match count range decided by given power of 2, plus a binary number offset
                         uint32_t matchCount = (1 << (pow2 + 1)) + base;
                         assert(matchCount >= 2 && matchCount <= 271);
 
+                        // displacement is a simple 10 bit value
                         uint32_t displacement = (m_bitset.GetByte(i) << 2) |
                             ((m_bitset.test(i + 8) ? 1 : 0) << 1) | 
                             (m_bitset.test(i + 9) ? 1 : 0);
@@ -92,8 +97,8 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
 
                 default:
                 {
-                    printf("Unknown SLDC state at pos %i\n", i);
-                    assert(false);
+                    fprintf(stderr, "Unknown SLDC state at pos %i\n", i);
+                    return false;
                 } break;
             }
         }
@@ -155,6 +160,7 @@ void SLDC::SetControl(ControlSymbol control)
         default:
         {
             m_state = State::SKIP;
+            fprintf(stderr, "Unexpected SLDC control symbol %i\n", control);
             assert(false);
         } break;
     }

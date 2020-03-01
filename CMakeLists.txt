@@ -16,13 +16,9 @@ ltoex
 
 set_property(TARGET ltoex PROPERTY CXX_STANDARD 17)
 
-# deps
-#if (NOT MSVC)
-#	set(SYSTEM_OPENSSL ON)
-#endif()
-#add_subdirectory(external/openssl-cmake)
-
 find_package(OpenSSL REQUIRED)
 include_directories(${OPENSSL_INCLUDE_DIRS})
-include_directories(.)
+if (MSVC)
+	include_directories(.)
+endif()
 target_link_libraries(ltoex ${OPENSSL_LIBRARIES})

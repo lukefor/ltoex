@@ -7,7 +7,7 @@
       "project": "CMakeLists.txt",
       "projectTarget": "ltoex.exe",
       "name": "ltoex.exe",
-      "args": [ "tape.key", "512" ]
+      "args": [ "tape.key" ]
     }
   ]
 }
