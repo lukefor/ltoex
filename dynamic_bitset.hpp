@@ -4,6 +4,8 @@
 // Distributed under the MIT license
 // See accompanying file LICENSE or copy at
 // https://opensource.org/licenses/MIT
+
+// NB this has been (badly) hacked to the opposite bit order and some utility functions added for getting bytes at arbitrary bit positions
 //
 #ifndef DYNAMIC_BITSET_DYNAMIC_BITSET_HPP
 #define DYNAMIC_BITSET_DYNAMIC_BITSET_HPP
@@ -122,23 +124,23 @@ public:
 	uint8_t GetByte(size_type pos)
 	{
 		return
-			test(pos + 7) << 0 |
-			test(pos + 6) << 1 |
-			test(pos + 5) << 2 |
-			test(pos + 4) << 3 |
-			test(pos + 3) << 4 |
-			test(pos + 2) << 5 |
-			test(pos + 1) << 6 |
-			test(pos + 0) << 7;
+			(test(pos + 7) ? 1 : 0) << 0 |
+			(test(pos + 6) ? 1 : 0) << 1 |
+			(test(pos + 5) ? 1 : 0) << 2 |
+			(test(pos + 4) ? 1 : 0) << 3 |
+			(test(pos + 3) ? 1 : 0) << 4 |
+			(test(pos + 2) ? 1 : 0) << 5 |
+			(test(pos + 1) ? 1 : 0) << 6 |
+			(test(pos + 0) ? 1 : 0) << 7;
 	}
 
 	uint8_t GetNibble(size_type pos)
 	{
 		return
-			test(pos + 3) << 0 |
-			test(pos + 2) << 1 |
-			test(pos + 1) << 2 |
-			test(pos + 0) << 3;
+			(test(pos + 3) ? 1 : 0) << 0 |
+			(test(pos + 2) ? 1 : 0) << 1 |
+			(test(pos + 1) ? 1 : 0) << 2 |
+			(test(pos + 0) ? 1 : 0) << 3;
 	}
 
 	// string constructors
@@ -1467,7 +1469,7 @@ template<typename Block, typename Allocator>
 constexpr typename dynamic_bitset<Block, Allocator>::size_type dynamic_bitset<Block, Allocator>::
   bit_index(size_type pos) noexcept
 {
-	return pos % bits_per_block;
+	return (bits_per_block - 1) - (pos % bits_per_block);
 }
 
 template<typename Block, typename Allocator>

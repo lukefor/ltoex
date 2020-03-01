@@ -1,13 +1,26 @@
 #include "SLDC.h"
 
+
+
 bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_t>& result)
 {
+    static constexpr std::array<uint32_t, 5> matchDigits{ { 1, 2, 3, 4, 8} };
+    static constexpr std::array<uint32_t, 5> matchSkip{ { 1, 1, 1, 1, 0} };
+
     m_bitset = decltype(m_bitset)(pCompressed, length);
    
     for (size_t i = 0; i < m_bitset.size();)
     {
+        if (i >= m_bitset.size() - 8 || m_state == State::END)
+        {
+            if (m_state != State::END && m_state != State::SKIP)
+            {
+                printf("Went too far\n");
+            }
+            break;
+        }
+
         const uint8_t byte = m_bitset.GetByte(i);
-        const bool bit = m_bitset.test(i);
         if (byte == 0xFF && m_bitset.test(i + 8))
         {
             SetControl(static_cast<ControlSymbol>(m_bitset.GetNibble(i + 9)));
@@ -15,36 +28,81 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
         }
         else
         {
-            if (m_scheme == Scheme::ONE)
+            switch (m_state)
             {
-                if (bit == 0) // Raw byte
+                case State::SCHEME1:
                 {
-                    AddByte(m_bitset.GetByte(i + 1), result);
-                    i += 9;
-                }
-                else // Compressed reference to history buffer
-                {
+                    const bool bit = m_bitset.test(i);
+                    if (bit == 0) // Raw byte
+                    {
+                        AddByte(m_bitset.GetByte(i + 1), result);
+                        i += 9;
+                    }
+                    else // Compressed reference to history buffer
+                    {
+                        ++i;
+                        // get number of sequential 1's (0-4)
+                        uint32_t pow2;
+                        for (pow2 = 0; pow2 < 4; ++pow2, ++i)
+                        {
+                            if (!m_bitset.test(i))
+                            {
+                                break;
+                            }
+                        }
+                        i += matchSkip[pow2];
+                        uint32_t base = 0;
+                        for (uint32_t j = 0; j < matchDigits[pow2]; ++j, ++i)
+                        {
+                            base |= m_bitset.test(i) << (matchDigits[pow2] - (j + 1));
+                        }
+                        uint32_t matchCount = (1 << (pow2 + 1)) + base;
+                        assert(matchCount >= 2 && matchCount <= 271);
 
-                }
-            }
-            else if (m_scheme == Scheme::TWO)
-            {
-                if (byte == 0xFF && !m_bitset.test(i + 8))
-                {
-                    AddByte(0xFF, result);
-                    i += 9;
-                }
-                else
+                        uint32_t displacement = (m_bitset.GetByte(i) << 2) |
+                            ((m_bitset.test(i + 8) ? 1 : 0) << 1) | 
+                            (m_bitset.test(i + 9) ? 1 : 0);
+                        i += 10;
+
+                        for (uint32_t j = 0; j < matchCount; ++j)
+                        {
+                            AddByte(m_history.Get(displacement + j), result);
+                        }
+                    }
+                } break;
+
+                case State::SCHEME2:
                 {
                     AddByte(byte, result);
-                    i += 8;
-                }
-            }
-            else
-            {
-                assert(false);
+                    i += (byte == 0xFF ? 9 : 8);
+                } break;
+
+                case State::SKIP:
+                {
+                    ++i;
+                    // Fast skip to next 1
+                    for (; i < m_bitset.size(); ++i)
+                    {
+                        if (m_bitset.test(i))
+                        {
+                            break;
+                        }
+                    }
+                } break;
+
+                default:
+                {
+                    printf("Unknown SLDC state at pos %i\n", i);
+                    assert(false);
+                } break;
             }
         }
+    }
+
+    // We end up with 4 mystery bytes
+    for (size_t i = 0; i < 4; ++i)
+    {
+        result.pop_back();
     }
 
     return true;
@@ -60,18 +118,44 @@ void SLDC::SetControl(ControlSymbol control)
 {
     switch (control)
     {
+        case ControlSymbol::SCHEME1:
+        {
+            m_state = State::SCHEME1;
+        } break;
 
+        case ControlSymbol::SCHEME2:
+        {
+            m_state = State::SCHEME2;
+        } break;
 
         case ControlSymbol::RESET1:
         {
             m_history.Reset();
-            m_scheme = Scheme::ONE;
+            m_state = State::SCHEME1;
         } break;
 
         case ControlSymbol::RESET2:
         {
             m_history.Reset();
-            m_scheme = Scheme::TWO;
+            m_state = State::SCHEME2;
+        } break;
+
+        case ControlSymbol::EOR:
+        case ControlSymbol::FILEMARK:
+        case ControlSymbol::FLUSH:
+        {
+            m_state = State::SKIP;
+        } break;
+
+        case ControlSymbol::END:
+        {
+            m_state = State::END;
+        } break;
+
+        default:
+        {
+            m_state = State::SKIP;
+            assert(false);
         } break;
     }
 }

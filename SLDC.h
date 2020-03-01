@@ -18,11 +18,13 @@ enum class ControlSymbol : uint8_t
     END = 0b1111
 };
 
-enum class Scheme : uint8_t
+enum class State : uint8_t
 {
     UNKNOWN,
-    ONE,
-    TWO
+    SKIP,
+    SCHEME1,
+    SCHEME2,
+    END
 };
 
 class SLDC
@@ -40,6 +42,6 @@ private:
 private:
     dynamic_bitset<uint8_t> m_bitset;
     HistoryBuffer m_history;
-    Scheme m_scheme = Scheme::UNKNOWN;
+    State m_state = State::UNKNOWN;
 
 };

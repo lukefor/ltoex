@@ -24,7 +24,7 @@ namespace AES
 
         int status = EVP_DecryptFinal_ex(ctx, pOutput, &outlen);
         EVP_CIPHER_CTX_free(ctx);
-        assert(outlen <= int(encryptedLength - EXTRA_BYTES));
+        assert(outlen <= outputLength);
         return status > 0;
     }
 }

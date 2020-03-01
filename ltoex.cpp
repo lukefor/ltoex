@@ -1,11 +1,14 @@
-﻿#include "ltoex.h"
-#include "AES.h"
+﻿#include "AES.h"
 #include "SLDC.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
+#ifdef _MSC_VER
+	#include "unistd-win.h"
+#else
+	#include <unistd.h>
+#endif
 #include <memory>
 #include <fstream>
 #include <cassert>
@@ -14,16 +17,11 @@
 
 int main(int argc, char** argv)
 {
-	//chdir("/mnt/c/github/ltoex/out/build/WSL-Debug");
 	// Load given argument as stenc-compatible key
 	std::array<uint8_t, 32> key;
 	{
 		std::fstream keyStream;
-	#ifdef _MSC_VER
-		keyStream.open("tape.key");
-	#else
 		keyStream.open(argv[1]);
-	#endif
 		std::string hexKey((std::istreambuf_iterator<char>(keyStream)), (std::istreambuf_iterator<char>()));
 		for (int i = 0; i < key.size(); ++i)
 		{
@@ -32,25 +30,23 @@ int main(int argc, char** argv)
 		}
 	}
 
-	//int fd = STDIN_FILENO;
-	auto fp = fopen("owo1.bin", "rb");
+
+#ifdef _MSC_VER
+	auto fp = fopen("ascii1.bin", "rb");
 	int fd = fileno(fp);
+#else
+	int fd = STDIN_FILENO;
+#endif
 
 	struct stat st;
 	fstat(fd, &st);
-#ifdef _MSC_VER
-	size_t inputBufferSize = 4096;
-#else
-	size_t inputBufferSize = st.st_blksize;
-#endif
-	size_t decryptedBufferSize = inputBufferSize - AES::EXTRA_BYTES;
-	//size_t outputBufferSize = decryptedBufferSize;
+	size_t inputBufferSize = strtol(argv[2], nullptr, 10);
 	std::unique_ptr<uint8_t[]> inputBuffer = std::make_unique<uint8_t[]>(inputBufferSize);
-	std::unique_ptr<uint8_t[]> decryptedBuffer = std::make_unique<uint8_t[]>(decryptedBufferSize);
-	//std::unique_ptr<uint8_t[]> outputBuffer = std::make_unique<uint8_t[]>(outputBufferSize);
+	std::unique_ptr<uint8_t[]> decryptedBuffer = std::make_unique<uint8_t[]>(inputBufferSize);
 	std::vector<uint8_t> outputBuffer;
-	outputBuffer.reserve(decryptedBufferSize);
+	outputBuffer.reserve(inputBufferSize);
 
+	// This read loop is comically bad
 	ssize_t readBytes = 0;
 	do
 	{
@@ -66,14 +62,27 @@ int main(int argc, char** argv)
 		}
 		while (blockBytes < inputBufferSize && readBytes > 0);
 
-		assert(blockBytes <= decryptedBufferSize);
-		AES::Decrypt(key.data(), inputBuffer.get(), blockBytes, decryptedBuffer.get(), decryptedBufferSize);
+		if (blockBytes > 0)
+		{
+			printf("blockbytes: %i\n", blockBytes);
+			printf("inputBufferSize: %i\n", inputBufferSize);
+			//assert(blockBytes >= decryptedBufferSize);
+			if (!AES::Decrypt(key.data(), inputBuffer.get(), blockBytes, decryptedBuffer.get(), inputBufferSize))
+			{
+				printf("Failed AES decryption (wrong key?)\n");
+				return 1;
+			}
 
-		SLDC sldc(decryptedBuffer.get(), blockBytes - AES::EXTRA_BYTES);
-		sldc.Extract(outputBuffer);
+		#if 1
+			SLDC sldc;
+			sldc.Extract(decryptedBuffer.get(), blockBytes - AES::EXTRA_BYTES, outputBuffer);
 
-		write(STDOUT_FILENO, outputBuffer.data(), (int)outputBuffer.size());
-		//write(STDOUT_FILENO, decryptedBuffer.get(), blockBytes - AES::EXTRA_BYTES);
+			write(STDOUT_FILENO, outputBuffer.data(), (int)outputBuffer.size());
+			outputBuffer.clear();
+		#else
+			write(STDOUT_FILENO, decryptedBuffer.get(), blockBytes - AES::EXTRA_BYTES);
+		#endif
+		}
 	} 
 	while (readBytes > 0);
 
