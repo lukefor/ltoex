@@ -1,8 +1,8 @@
 #pragma once
 
+#include "Global.h"
 #include <array>
 #include <vector>
-#include "dynamic_bitset.hpp"
 #include "BitBuffer.h"
 #include "HistoryBuffer.h"
 

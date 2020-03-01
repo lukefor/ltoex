@@ -3,7 +3,6 @@
 #include "Global.h"
 
 
-// A more performant stripped down equivalent to dynamic_bitset
 class BitBuffer
 {
 public:
@@ -37,15 +36,8 @@ public:
     {
     #if 1
         size_t byteOffset = offset / 8;
-        uint8_t byteMod = (uint8_t)(offset % 8);
-        //if (byteMod == 0)
-        //{
-        //    return m_buffer[byteOffset];
-        //}
-
-        // UB inc
         uint16_t result = ((uint16_t)(m_buffer[byteOffset]) << 8) | m_buffer[byteOffset + 1];
-        result >>= (8 - byteMod);
+        result >>= (8 - (offset % 8));
         return (uint8_t)result;
     #else
         return GetBits<uint8_t, 8>(offset);

@@ -14,7 +14,7 @@ A further description of the secrets uncovered in the LTO format during developm
 ## Building
 
 ```
-cmake .
+cmake -DCMAKE_BUILD_TYPE=Release .
 make
 (move ltoex somewhere nice like /usr/local/bin)
 ```
