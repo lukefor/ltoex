@@ -6,6 +6,7 @@
 // https://opensource.org/licenses/MIT
 
 // NB this has been (badly) hacked to the opposite bit order and some utility functions added for getting bytes at arbitrary bit positions
+// UPDATE: this is now unused, performance inadequate
 //
 #ifndef DYNAMIC_BITSET_DYNAMIC_BITSET_HPP
 #define DYNAMIC_BITSET_DYNAMIC_BITSET_HPP

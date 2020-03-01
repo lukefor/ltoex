@@ -8,7 +8,7 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
     static constexpr std::array<uint32_t, 5> matchSkip{ { 1, 1, 1, 1, 0} };
 
     m_bitset = decltype(m_bitset)(pCompressed, length);
-   
+
     for (size_t i = 0; i < m_bitset.size();)
     {
         if (i >= m_bitset.size() - 8 || m_state == State::END)
@@ -65,7 +65,7 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
 
                         // displacement is a simple 10 bit value
                         uint32_t displacement = (m_bitset.GetByte(i) << 2) |
-                            ((m_bitset.test(i + 8) ? 1 : 0) << 1) | 
+                            ((m_bitset.test(i + 8) ? 1 : 0) << 1) |
                             (m_bitset.test(i + 9) ? 1 : 0);
                         i += 10;
 

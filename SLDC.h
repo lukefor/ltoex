@@ -3,6 +3,7 @@
 #include <array>
 #include <vector>
 #include "dynamic_bitset.hpp"
+#include "BitBuffer.h"
 #include "HistoryBuffer.h"
 
 
@@ -36,11 +37,16 @@ public:
     bool Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_t>& result);
 
 private:
-    void AddByte(uint8_t byte, std::vector<uint8_t>& result);
+    FORCEINLINE void AddByte(uint8_t byte, std::vector<uint8_t>& result);
+    //void SetControl(size_t& i);
     void SetControl(ControlSymbol control);
 
 private:
+#if 1
+    BitBuffer m_bitset;
+#else
     dynamic_bitset<uint8_t> m_bitset;
+#endif
     HistoryBuffer m_history;
     State m_state = State::UNKNOWN;
 

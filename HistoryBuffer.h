@@ -1,23 +1,22 @@
 #pragma once
 
+#include "Global.h"
+
 
 class HistoryBuffer
 {
 public:
     HistoryBuffer() {}
 
-    void Add(uint8_t byte) 
+    FORCEINLINE void Add(uint8_t byte)
     {
-        m_buffer[m_pos] = byte;
-        if (++m_pos >= m_buffer.size())
-        {
-            m_pos = 0;
-        }
+        m_buffer[m_pos++] = byte;
+        m_pos %= m_buffer.size();
     }
 
     void Reset() { m_pos = 0; }
 
-    uint8_t Get(int offset) const
+    FORCEINLINE uint8_t Get(int offset) const
     {
         assert(offset >= 0 && offset < m_buffer.size() * 2);
         return m_buffer[offset % m_buffer.size()];

@@ -107,6 +107,15 @@ int main(int argc, char** argv)
 		{
 			if (pRecordStart != pInputEnd && (pRecordEnd != pInputEnd || readBytes == 0))
 			{
+				for (size_t i = 0; i < 4; ++i)
+				{
+					if (*(pRecordStart + (headerSize - 1) - i) != 0)
+					{
+						fprintf(stderr, "Unexpected bytes in record header\n");
+						return 1;
+					}
+				}
+
 				pLastProcessedRecordEnd = pRecordEnd;
 				size_t recordLength = pRecordEnd - pRecordStart;
 				//fprintf(stderr, "Record start: %i, record length: %i, inputBufferPtr: %i\n", pRecordStart - inputBuffer.get(), recordLength, inputBufferPtr);
@@ -124,7 +133,9 @@ int main(int argc, char** argv)
 					return 1;
 				}
 
+			#if !defined(_MSC_VER) 
 				write(STDOUT_FILENO, outputBuffer.data(), (int)outputBuffer.size());
+			#endif
 				outputBuffer.clear();
 			#else
 				write(STDOUT_FILENO, decryptedBuffer.get(), recordLength - AES::EXTRA_BYTES);
@@ -133,11 +144,14 @@ int main(int argc, char** argv)
 
 			pRecordStart = pRecordEnd;
 
-			pRecordEnd = std::search(
-				pRecordStart + headerSize,
-				pInputEnd,
-				aad.begin(),
-				aad.end());
+			if (pRecordStart < pInputEnd)
+			{
+				pRecordEnd = std::search(
+					pRecordStart + headerSize,
+					pInputEnd,
+					aad.begin(),
+					aad.end());
+			}
 		}
 	
 		// Copy overflow back to the start of the buffer
