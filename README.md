@@ -32,8 +32,8 @@ The only argument to `ltoex` is the path to a key file created by `stenc`, which
 
 ## Notes
 
-This currently achieves ~45MB/s on a Sandy Bridge equivalent Xeon CPU. Bottleneck by far is the SLDC decompression. Work is planned to improve this, but it is currently fast enough for tape streaming.
+Ltoex currently achieves ~150MB/s on a Sandy Bridge Xeon CPU against mostly uncompressible (Scheme 2) data. Against data with a greater compression ratio, it is likely ltoex will be the bottleneck.
 
-This would need to be changed, probably quite significantly, for LTO-5 and above. It is only suitable for LTO-4 in its current form. However, the bug is probably fixed in IBM LTO-5 drives, so it won't be much use anyway.
+Ltoex would need to be changed, probably quite significantly, for LTO-5 and above. It is only suitable for LTO-4 in its current form. However, the bug is probably fixed in IBM LTO-5 drives, so it won't be much use anyway.
 
 Only Linux is supported, but it will probably work on other platforms with similar tape drivers. MSVC is supported for debug purposes only, as Visual Studio is my dev environment of choice.
