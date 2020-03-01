@@ -9,98 +9,109 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
 
     m_bitset = decltype(m_bitset)(pCompressed, length);
 
-    for (size_t i = 0; i < m_bitset.size();)
+    size_t i = 0;
+    SetControl(i);
+
+    for (; i < m_bitset.size() - 8;)
     {
-        if (i >= m_bitset.size() - 8 || m_state == State::END)
+        switch (m_state)
         {
-            if (m_state != State::END && m_state != State::SKIP)
+            case State::SCHEME1:
             {
-                fprintf(stderr, "Went too far\n");
-                return false;
-            }
-            break;
-        }
-
-        const uint8_t byte = m_bitset.GetByte(i);
-        if (byte == 0xFF && m_bitset.test(i + 8))
-        {
-            SetControl(static_cast<ControlSymbol>(m_bitset.GetNibble(i + 9)));
-            i += 13;
-        }
-        else
-        {
-            switch (m_state)
-            {
-                case State::SCHEME1:
+                const bool bit = m_bitset.test(i);
+                if (bit == 0) // Raw byte
                 {
-                    const bool bit = m_bitset.test(i);
-                    if (bit == 0) // Raw byte
-                    {
-                        AddByte(m_bitset.GetByte(i + 1), result);
-                        i += 9;
-                    }
-                    else // Compressed reference to history buffer
-                    {
-                        ++i;
-                        // get number of sequential 1's (0-4)
-                        uint32_t pow2;
-                        for (pow2 = 0; pow2 < 4; ++pow2, ++i)
-                        {
-                            if (!m_bitset.test(i))
-                            {
-                                break;
-                            }
-                        }
-                        // for 0-3, skip a 0. 4 1's has no 0
-                        i += matchSkip[pow2];
-                        uint32_t base = 0;
-                        // read number of bits based on spec
-                        for (uint32_t j = 0; j < matchDigits[pow2]; ++j, ++i)
-                        {
-                            base |= m_bitset.test(i) << (matchDigits[pow2] - (j + 1));
-                        }
-                        // match count range decided by given power of 2, plus a binary number offset
-                        uint32_t matchCount = (1 << (pow2 + 1)) + base;
-                        assert(matchCount >= 2 && matchCount <= 271);
-
-                        // displacement is a simple 10 bit value
-                        uint32_t displacement = (m_bitset.GetByte(i) << 2) |
-                            ((m_bitset.test(i + 8) ? 1 : 0) << 1) |
-                            (m_bitset.test(i + 9) ? 1 : 0);
-                        i += 10;
-
-                        for (uint32_t j = 0; j < matchCount; ++j)
-                        {
-                            AddByte(m_history.Get(displacement + j), result);
-                        }
-                    }
-                } break;
-
-                case State::SCHEME2:
+                    AddByte(m_bitset.GetByte(i + 1), result);
+                    i += 9;
+                }
+                // Check for control symbol (we already know [i] is 1)
+                else if (m_bitset.GetByte(i + 1) != 0xFF) 
                 {
-                    AddByte(byte, result);
-                    i += (byte == 0xFF ? 9 : 8);
-                } break;
-
-                case State::SKIP:
-                {
+                    // Compressed reference to history buffer
                     ++i;
-                    // Fast skip to next 1
-                    for (; i < m_bitset.size(); ++i)
+                    // get number of sequential 1's (0-4)
+                    uint32_t pow2;
+                    for (pow2 = 0; pow2 < 4; ++pow2, ++i)
                     {
-                        if (m_bitset.test(i))
+                        if (!m_bitset.test(i))
                         {
                             break;
                         }
                     }
-                } break;
+                    // for 0-3, skip a 0. 4 1's has no 0
+                    i += matchSkip[pow2];
+                    uint32_t base = 0;
+                    // read number of bits based on spec
+                    for (uint32_t j = 0; j < matchDigits[pow2]; ++j, ++i)
+                    {
+                        base |= m_bitset.test(i) << (matchDigits[pow2] - (j + 1));
+                    }
+                    // match count range decided by given power of 2, plus a binary number offset
+                    uint32_t matchCount = (1 << (pow2 + 1)) + base;
+                    assert(matchCount >= 2 && matchCount <= 271);
 
-                default:
+                    // displacement is a simple 10 bit value
+                #if 1
+                    uint32_t displacement = (m_bitset.GetByte(i) << 2) |
+                        ((m_bitset.test(i + 8) ? 1 : 0) << 1) | 
+                        (m_bitset.test(i + 9) ? 1 : 0);
+                #else
+                    uint32_t displacement = m_bitset.GetBits<uint32_t, 10>(i);
+                #endif
+                    i += 10;
+
+                    for (uint32_t j = 0; j < matchCount; ++j)
+                    {
+                        AddByte(m_history.Get(displacement + j), result);
+                    }
+                }
+                else
                 {
-                    fprintf(stderr, "Unknown SLDC state at pos %i\n", i);
-                    return false;
-                } break;
+                    SetControl(i);
+                }
+            } break;
+
+            case State::SCHEME2:
+            {
+                const uint8_t byte = m_bitset.GetByte(i);
+                AddByte(byte, result);
+                if (byte != 0xFF)
+                {
+                    i += 8;
+                }
+                else if (m_bitset.test(i + 8))
+                {
+                    SetControl(i);
+                }
+                else
+                {
+                    i += 9;
+                }
+            } break;
+
+            case State::SKIP:
+            {
+                if (m_bitset.GetByte(i) == 0xFF && m_bitset.test(i + 8))
+                {
+                    SetControl(i);
+                }
+                else
+                {
+                    ++i;
+                }
+            } break;
+
+            case State::END:
+            {
+                i = m_bitset.size();
+                break;
             }
+
+            default:
+            {
+                fprintf(stderr, "Unknown SLDC state at pos %i\n", i);
+                return false;
+            } break;
         }
     }
 
@@ -119,8 +130,17 @@ void SLDC::AddByte(uint8_t byte, std::vector<uint8_t>& result)
     result.push_back(byte);
 }
 
-void SLDC::SetControl(ControlSymbol control)
+void SLDC::SetControl(size_t& i)
 {
+    // Sanity check input
+    if (m_bitset.GetByte(i) != 0xFF || !m_bitset.test(i + 8))
+    {
+        fprintf(stderr, "Invalid 9x1 SLDC control symbol marker at pos %i\n", i);
+        assert(false);
+    }
+
+    ControlSymbol control = static_cast<ControlSymbol>(m_bitset.GetNibble(i + 9));
+    i += 13;
     switch (control)
     {
         case ControlSymbol::SCHEME1:
