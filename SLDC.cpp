@@ -85,14 +85,6 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
                 case State::SKIP:
                 {
                     ++i;
-                    // Fast skip to next 1
-                    for (; i < m_bitset.size(); ++i)
-                    {
-                        if (m_bitset.test(i))
-                        {
-                            break;
-                        }
-                    }
                 } break;
 
                 default:
@@ -160,8 +152,7 @@ void SLDC::SetControl(ControlSymbol control)
         default:
         {
             m_state = State::SKIP;
-            fprintf(stderr, "Unexpected SLDC control symbol %i\n", control);
-            assert(false);
+            fprintf(stderr, "Unknown SLDC control symbol %i\n", control);
         } break;
     }
 }

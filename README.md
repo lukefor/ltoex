@@ -21,18 +21,26 @@ make
 
 ## Usage
 
+####Set up raw reads with stenc:
+Before anything else, you must put your drive into raw read mode, such as with `stenc`. HP drives will balk at this if the tape was not written with --unprotect set.
 ```
 stenc -f /dev/nst0 -e rawread -k /path/to/my/stenc.key -a 1 --unprotect
-dd if=/dev/nst0 bs=16M | ltoex /path/to/my/stenc.key | tar -tvf -
 ```
 
-This example usage will print the contents of a tar tape. The usage of `dd` with a 16MB block size is important - you cannot swap this out for `cat` or similar. `mbuffer` can be used but it must be with a 16MB block size. **The 16MB block size has no relation to the actual block size of the tape.**
+####Tar listing example
+These examples will print the contents of a tar tape. 
 
 The only argument to `ltoex` is the path to a key file created by `stenc`, which is a 256-bit key in ascii hex digits.
 
+```
+ltoex /path/to/my/stenc.key /dev/nst0 | tar -tvf -
+```
+
+You can also pipe `cat`/`dd`/`mbuffer` etc, in which case leave out the second argument to `ltoex`. However when piping, you are very likely to run into block size issues.
+
 ## Notes
 
-Ltoex currently achieves ~150MB/s on a Sandy Bridge Xeon CPU against mostly uncompressible (Scheme 2) data. Against data with a greater compression ratio, it is likely ltoex will be the bottleneck.
+Ltoex currently achieves ~150MB/s on an Ivy Bridge (v2) Xeon CPU against mostly uncompressible (Scheme 2) data. Against data with a greater compression ratio, it is likely ltoex will be the bottleneck.
 
 Ltoex would need to be changed, probably quite significantly, for LTO-5 and above. It is only suitable for LTO-4 in its current form. However, the bug is probably fixed in IBM LTO-5 drives, so it won't be much use anyway.
 

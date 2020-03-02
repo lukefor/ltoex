@@ -14,10 +14,30 @@
 #include <cassert>
 #include <vector>
 #include <algorithm>
+#include <string.h>
 
 
 int main(int argc, char** argv)
 {
+	// MSVC support is for debugging only
+#ifdef _MSC_VER
+	auto fp = fopen("owoibm3.bin", "rb");
+	int fd = fileno(fp);
+	size_t inputBlockSize = 4096;
+#else
+	int fd = STDIN_FILENO;
+	if (argc == 3)
+	{
+		auto fp = fopen(argv[2], "rb");
+		fd = fileno(fp);
+	}
+	else if (argc != 2)
+	{
+		fprintf(stderr, "Usage: ltoex keyfile.key [/dev/nst0]\n");
+		return 1;
+	}
+#endif
+
 	// Load given argument as stenc-compatible key file
 	std::array<uint8_t, 32> key;
 	{
@@ -31,21 +51,11 @@ int main(int argc, char** argv)
 		}
 	}
 
-	// MSVC support is for debugging only
-#ifdef _MSC_VER
-	auto fp = fopen("ascii1.bin", "rb");
-	int fd = fileno(fp);
-	size_t inputBlockSize = 4096;
-#else
-	int fd = STDIN_FILENO;
-	struct stat st;
-	fstat(fd, &st);
-	size_t inputBlockSize = st.st_blksize;
-#endif
 
 	// Encrypted blocks are not a consistent length on LTO, so we must prepare for the worst
 	// I feel bad doing it, but let's be honest who's going to bat an eyelid at 32mb ram usage in 2020
 	constexpr size_t inputBufferSize = 16 * 1024 * 1024;
+	constexpr size_t inputBlockSize = 4 * 1024 * 1024;
 	constexpr size_t decryptedBufferSize = 8 * 1024 * 1024;
 	assert(inputBufferSize % inputBlockSize == 0);
 	std::unique_ptr<uint8_t[]> inputBuffer = std::make_unique<uint8_t[]>(inputBufferSize);
@@ -57,16 +67,16 @@ int main(int argc, char** argv)
 	// Use the AAD and 4 null bytes as a header we can search for to find block boundaries
 	// In an ideal world this would also use the IV, but 20 bytes is already decent odds against collision
 	constexpr uint32_t headerSize = 32;
-	ssize_t readBytes = read(fd, inputBuffer.get(), headerSize);
-	if (readBytes != headerSize)
+	ssize_t readBytes = read(fd, inputBuffer.get(), inputBlockSize);
+	if (readBytes < headerSize)
 	{
-		fprintf(stderr, "Failed to read 32 byte block header\n");
+		fprintf(stderr, "Failed to read 32 byte block header (readBytes: %i, err: %s)\n", readBytes, strerror(errno));
 		return 1;
 	}
-	inputBufferPtr += headerSize;
+	inputBufferPtr += readBytes;
 	for (size_t i = 0; i < 4; ++i)
 	{
-		if (inputBuffer[headerSize - i] != 0)
+		if (inputBuffer.get()[(headerSize - 1) - i] != 0)
 		{
 			fprintf(stderr, "Unexpected bytes in header\n");
 			return 1;
@@ -81,11 +91,11 @@ int main(int argc, char** argv)
 		while (inputBufferPtr < inputBufferSize - inputBlockSize)
 		{
 			readBytes = read(fd, inputBuffer.get() + inputBufferPtr, inputBlockSize);
-			inputBufferPtr += readBytes;
-			if (readBytes == 0)
+			if (readBytes <= 0)
 			{
 				break;
 			}
+			inputBufferPtr += readBytes;
 		}
 		
 		// Find and process as many full records as we can find, including the trailing record if we did not fill the input buffer
