@@ -21,13 +21,13 @@ make
 
 ## Usage
 
-####Set up raw reads with stenc:
+#### Set up raw reads with stenc:
 Before anything else, you must put your drive into raw read mode, such as with `stenc`. HP drives will balk at this if the tape was not written with --unprotect set.
 ```
 stenc -f /dev/nst0 -e rawread -k /path/to/my/stenc.key -a 1 --unprotect
 ```
 
-####Tar listing example
+#### Tar listing example:
 These examples will print the contents of a tar tape. 
 
 The only argument to `ltoex` is the path to a key file created by `stenc`, which is a 256-bit key in ascii hex digits.
