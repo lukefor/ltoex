@@ -61,7 +61,10 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
                         }
                         // match count range decided by given power of 2, plus a binary number offset
                         uint32_t matchCount = (1 << (pow2 + 1)) + base;
-                        assert(matchCount >= 2 && matchCount <= 271);
+                        if (matchCount < 2 || matchCount > 271)
+                        {
+                            fprintf(stderr, "matchCount (%i) out of range at pos %i\n", matchCount, i);
+                        }
 
                         // displacement is a simple 10 bit value
                         uint32_t displacement = (m_bitset.GetByte(i) << 2) |
