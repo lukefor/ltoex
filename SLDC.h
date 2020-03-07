@@ -50,5 +50,6 @@ private:
 #endif
     HistoryBuffer m_history;
     State m_state = State::UNKNOWN;
+    State m_lastValidState = State::UNKNOWN;
 
 };

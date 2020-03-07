@@ -35,7 +35,6 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
                 case State::SCHEME1:
                 {
                     const bool bit = m_bitset.test(i);
-                    if (i == 27605)  Dump(i);
                     
                     if (bit == 0) // Raw byte
                     {
@@ -103,12 +102,12 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
             }
         }
     }
-    /*
+    
     // We end up with 4 mystery bytes
     for (size_t i = 0; i < 4; ++i)
     {
         result.pop_back();
-    }*/
+    }
 
     return true;
 }
@@ -130,23 +129,27 @@ void SLDC::SetControl(size_t& i)
         case ControlSymbol::SCHEME1:
         {
             m_state = State::SCHEME1;
+            m_lastValidState = m_state;
         } break;
 
         case ControlSymbol::SCHEME2:
         {
             m_state = State::SCHEME2;
+            m_lastValidState = m_state;
         } break;
 
         case ControlSymbol::RESET1:
         {
             m_history.Reset();
             m_state = State::SCHEME1;
+            m_lastValidState = m_state;
         } break;
 
         case ControlSymbol::RESET2:
         {
             m_history.Reset();
             m_state = State::SCHEME2;
+            m_lastValidState = m_state;
         } break;
         
         case ControlSymbol::FILEMARK:
@@ -166,9 +169,9 @@ void SLDC::SetControl(size_t& i)
 
         default:
         {
+            fprintf(stderr, "Unknown SLDC control symbol %i (prev state %i, last valid state %i)\n", control, m_state, m_lastValidState);
+            Dump(i);
             m_state = State::SKIP;
-            fprintf(stderr, "Unknown SLDC control symbol %i\n", control);
-            //Dump(i);
         } break;
     }
 

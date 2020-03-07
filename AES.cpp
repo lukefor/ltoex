@@ -22,7 +22,10 @@ namespace AES
         EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, 
             const_cast<void*>(reinterpret_cast<const void*>((pEncrypted + encryptedLength - 16))));  
 
-        assert(outlen == encryptedLength - EXTRA_BYTES);
+        if (outlen != encryptedLength - EXTRA_BYTES)
+        {
+            return false;
+        }
         int status = EVP_DecryptFinal_ex(ctx, pOutput, &outlen);
         EVP_CIPHER_CTX_free(ctx);
         return status > 0;

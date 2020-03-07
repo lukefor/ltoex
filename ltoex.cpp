@@ -19,14 +19,16 @@
 
 int main(int argc, char** argv)
 {
+	bool deviceInput = false;
 	// MSVC support is for debugging only
 #ifdef _MSC_VER
-	auto fp = fopen("owoibm3.bin", "rb");
+	auto fp = fopen("sinkusrenc.bin", "rb");
 	int fd = fileno(fp);
 #else
 	int fd = STDIN_FILENO;
 	if (argc == 3)
 	{
+		deviceInput = true;
 		auto fp = fopen(argv[2], "rb");
 		fd = fileno(fp);
 	}
@@ -63,72 +65,17 @@ int main(int argc, char** argv)
 	std::vector<uint8_t> outputBuffer;
 	outputBuffer.reserve(decryptedBufferSize);
 
-	// Use the AAD and 4 null bytes as a header we can search for to find block boundaries
-	// In an ideal world this would also use the IV, but 20 bytes is already decent odds against collision
-	constexpr uint32_t headerSize = 32;
-	ssize_t readBytes = read(fd, inputBuffer.get(), inputBlockSize);
-	if (readBytes < headerSize)
+	// If we're reading directly from the tape drive, we don't need to do the questionable searching for headers to determine block sizes
+	if (deviceInput)
 	{
-		fprintf(stderr, "Failed to read 32 byte block header (readBytes: %i, err: %s)\n", readBytes, strerror(errno));
-		return 1;
-	}
-	inputBufferPtr += readBytes;
-	for (size_t i = 0; i < 4; ++i)
-	{
-		if (inputBuffer.get()[(headerSize - 1) - i] != 0)
+		while (true)
 		{
-			fprintf(stderr, "Unexpected bytes in header\n");
-			return 1;
-		}
-	}
-	std::array<uint8_t, 16> aad;
-	std::copy(inputBuffer.get(), inputBuffer.get() + 16, aad.begin());
+			ssize_t readBytes = read(fd, inputBuffer.get(), inputBlockSize);
+			//fprintf(stderr, "ReadBytes: %i\n", readBytes);
 
-	do
-	{
-		// Read as much as we can
-		while (inputBufferPtr < inputBufferSize - inputBlockSize)
-		{
-			readBytes = read(fd, inputBuffer.get() + inputBufferPtr, inputBlockSize);
-			if (readBytes <= 0)
+			if (readBytes > 0)
 			{
-				break;
-			}
-			inputBufferPtr += readBytes;
-		}
-		
-		// Find and process as many full records as we can find, including the trailing record if we did not fill the input buffer
-		uint8_t* pInputEnd = inputBuffer.get() + inputBufferPtr;
-		uint8_t* pLastProcessedRecordEnd = pInputEnd;
-
-		uint8_t* pRecordStart = std::search(
-			inputBuffer.get(),
-			pInputEnd,
-			aad.begin(),
-			aad.end());
-		uint8_t* pRecordEnd = std::search(
-			pRecordStart + headerSize,
-			pInputEnd,
-			aad.begin(),
-			aad.end());
-
-		while (pRecordStart != pInputEnd)
-		{
-			if (pRecordStart != pInputEnd && (pRecordEnd != pInputEnd || readBytes == 0))
-			{
-				for (size_t i = 0; i < 4; ++i)
-				{
-					if (*(pRecordStart + (headerSize - 1) - i) != 0)
-					{
-						fprintf(stderr, "Unexpected bytes in record header\n");
-						return 1;
-					}
-				}
-
-				pLastProcessedRecordEnd = pRecordEnd;
-				size_t recordLength = pRecordEnd - pRecordStart;
-				//fprintf(stderr, "Record start: %i, record length: %i, inputBufferPtr: %i\n", pRecordStart - inputBuffer.get(), recordLength, inputBufferPtr);
-				if (!AES::Decrypt(key.data(), pRecordStart, recordLength, decryptedBuffer.get(), decryptedBufferSize))
+				if (!AES::Decrypt(key.data(), inputBuffer.get(), readBytes, decryptedBuffer.get(), decryptedBufferSize))
 				{
 					fprintf(stderr, "Failed AES decryption (wrong key?)\n");
 					return 1;
@@ -137,7 +84,7 @@ int main(int argc, char** argv)
 			#if 1
 				SLDC sldc;
 
-				if (!sldc.Extract(decryptedBuffer.get(), recordLength - AES::EXTRA_BYTES, outputBuffer))
+				if (!sldc.Extract(decryptedBuffer.get(), readBytes - AES::EXTRA_BYTES, outputBuffer))
 				{
 					fprintf(stderr, "Failed SLDC decompression (probably a bug, corruption should be caught at AES stage)\n");
 					return 1;
@@ -148,28 +95,126 @@ int main(int argc, char** argv)
 			#endif
 				outputBuffer.clear();
 			#else
-				write(STDOUT_FILENO, decryptedBuffer.get(), recordLength - AES::EXTRA_BYTES);
+				write(STDOUT_FILENO, decryptedBuffer.get(), readBytes - AES::EXTRA_BYTES);
 			#endif
 			}
-
-			pRecordStart = pRecordEnd;
-
-			if (pRecordStart < pInputEnd)
+			else
 			{
-				pRecordEnd = std::search(
-					pRecordStart + headerSize,
-					pInputEnd,
-					aad.begin(),
-					aad.end());
+				break;
 			}
 		}
-	
-		// Copy overflow back to the start of the buffer
-		//fprintf(stderr, "Overflow: %i\n", pInputEnd - pLastProcessedRecordEnd);
-		std::copy(pLastProcessedRecordEnd, pInputEnd, inputBuffer.get());
-		inputBufferPtr = pInputEnd - pLastProcessedRecordEnd;
-	} 
-	while (inputBufferPtr > 0);	
+	}
+	else
+	{
+		// Use the AAD and 4 null bytes as a header we can search for to find block boundaries
+		// In an ideal world this would also use the IV, but 20 bytes is already decent odds against collision
+		constexpr uint32_t headerSize = 32;
+		ssize_t readBytes = read(fd, inputBuffer.get(), inputBlockSize);
+		//fprintf(stderr, "ReadBytes: %i\n", readBytes);
+		if (readBytes < headerSize)
+		{
+			fprintf(stderr, "Failed to read 32 byte block header (readBytes: %i, err: %s)\n", readBytes, strerror(errno));
+			return 1;
+		}
+		inputBufferPtr += readBytes;
+		for (size_t i = 0; i < 4; ++i)
+		{
+			if (inputBuffer.get()[(headerSize - 1) - i] != 0)
+			{
+				fprintf(stderr, "Unexpected bytes in header\n");
+				return 1;
+			}
+		}
+		std::array<uint8_t, 16> aad;
+		std::copy(inputBuffer.get(), inputBuffer.get() + 16, aad.begin());
+
+		do
+		{
+			// Read as much as we can
+			while (inputBufferPtr < inputBufferSize - inputBlockSize)
+			{
+				readBytes = read(fd, inputBuffer.get() + inputBufferPtr, inputBlockSize);
+				//fprintf(stderr, "ReadBytes: %i\n", readBytes);
+				if (readBytes <= 0)
+				{
+					break;
+				}
+				inputBufferPtr += readBytes;
+			}
+
+			// Find and process as many full records as we can find, including the trailing record if we did not fill the input buffer
+			uint8_t* pInputEnd = inputBuffer.get() + inputBufferPtr;
+			uint8_t* pLastProcessedRecordEnd = pInputEnd;
+
+			uint8_t* pRecordStart = std::search(
+				inputBuffer.get(),
+				pInputEnd,
+				aad.begin(),
+				aad.end());
+			uint8_t* pRecordEnd = std::search(
+				pRecordStart + headerSize,
+				pInputEnd,
+				aad.begin(),
+				aad.end());
+
+			while (pRecordStart != pInputEnd)
+			{
+				if (pRecordStart != pInputEnd && (pRecordEnd != pInputEnd || readBytes == 0))
+				{
+					for (size_t i = 0; i < 4; ++i)
+					{
+						if (*(pRecordStart + (headerSize - 1) - i) != 0)
+						{
+							fprintf(stderr, "Unexpected bytes in record header\n");
+							return 1;
+						}
+					}
+
+					pLastProcessedRecordEnd = pRecordEnd;
+					size_t recordLength = pRecordEnd - pRecordStart;
+					//fprintf(stderr, "Record start: %i, record length: %i, inputBufferPtr: %i\n", pRecordStart - inputBuffer.get(), recordLength, inputBufferPtr);
+					if (!AES::Decrypt(key.data(), pRecordStart, recordLength, decryptedBuffer.get(), decryptedBufferSize))
+					{
+						fprintf(stderr, "Failed AES decryption (wrong key?)\n");
+						return 1;
+					}
+
+				#if 1
+					SLDC sldc;
+
+					if (!sldc.Extract(decryptedBuffer.get(), recordLength - AES::EXTRA_BYTES, outputBuffer))
+					{
+						fprintf(stderr, "Failed SLDC decompression (probably a bug, corruption should be caught at AES stage)\n");
+						return 1;
+					}
+
+				#if !defined(_MSC_VER) 
+					write(STDOUT_FILENO, outputBuffer.data(), (int)outputBuffer.size());
+				#endif
+					outputBuffer.clear();
+				#else
+					write(STDOUT_FILENO, decryptedBuffer.get(), recordLength - AES::EXTRA_BYTES);
+				#endif
+				}
+
+				pRecordStart = pRecordEnd;
+
+				if (pRecordStart < pInputEnd)
+				{
+					pRecordEnd = std::search(
+						pRecordStart + headerSize,
+						pInputEnd,
+						aad.begin(),
+						aad.end());
+				}
+			}
+
+			// Copy overflow back to the start of the buffer
+			//fprintf(stderr, "Overflow: %i\n", pInputEnd - pLastProcessedRecordEnd);
+			std::copy(pLastProcessedRecordEnd, pInputEnd, inputBuffer.get());
+			inputBufferPtr = pInputEnd - pLastProcessedRecordEnd;
+		} while (inputBufferPtr > 0);
+	}
 
 	return 0;
 }
