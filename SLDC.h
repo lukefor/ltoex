@@ -39,7 +39,8 @@ public:
 private:
     FORCEINLINE void AddByte(uint8_t byte, std::vector<uint8_t>& result);
     //void SetControl(size_t& i);
-    void SetControl(ControlSymbol control);
+    void SetControl(size_t& i);
+    void Dump(size_t i);
 
 private:
 #if 1

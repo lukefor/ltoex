@@ -16,7 +16,7 @@ public:
 
     FORCEINLINE bool test(size_t offset) const
     {
-        assert(offset / 8 < m_size);
+        assert(offset < m_size);
         return m_buffer[offset / 8] & (1 << (7 - (offset % 8)));
     }
 
@@ -24,6 +24,7 @@ public:
     FORCEINLINE 
     T GetBits(size_t offset) const
     {
+        assert(offset + BITS < m_size);
         T result = 0;
         for (size_t i = 0; i < BITS; ++i)
         {
@@ -35,6 +36,7 @@ public:
     FORCEINLINE uint8_t GetByte(size_t offset) const
     {
     #if 1
+        assert(offset + 8 < m_size);
         size_t byteOffset = offset / 8;
         uint16_t result = ((uint16_t)(m_buffer[byteOffset]) << 8) | m_buffer[byteOffset + 1];
         result >>= (8 - (offset % 8));

@@ -23,6 +23,6 @@ public:
     }
 
 private:
-    std::array<uint8_t, 1024> m_buffer;
+    std::array<uint8_t, 1024> m_buffer{};
     size_t m_pos = 0;
 };

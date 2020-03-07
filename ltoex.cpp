@@ -23,7 +23,6 @@ int main(int argc, char** argv)
 #ifdef _MSC_VER
 	auto fp = fopen("owoibm3.bin", "rb");
 	int fd = fileno(fp);
-	size_t inputBlockSize = 4096;
 #else
 	int fd = STDIN_FILENO;
 	if (argc == 3)
@@ -137,6 +136,7 @@ int main(int argc, char** argv)
 
 			#if 1
 				SLDC sldc;
+
 				if (!sldc.Extract(decryptedBuffer.get(), recordLength - AES::EXTRA_BYTES, outputBuffer))
 				{
 					fprintf(stderr, "Failed SLDC decompression (probably a bug, corruption should be caught at AES stage)\n");

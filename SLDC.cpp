@@ -8,6 +8,8 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
     static constexpr std::array<uint32_t, 5> matchSkip{ { 1, 1, 1, 1, 0} };
 
     m_bitset = decltype(m_bitset)(pCompressed, length);
+    m_state = State::UNKNOWN;
+    m_history.Reset();
 
     for (size_t i = 0; i < m_bitset.size();)
     {
@@ -15,7 +17,7 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
         {
             if (m_state != State::END && m_state != State::SKIP)
             {
-                fprintf(stderr, "Went too far\n");
+                fprintf(stderr, "Went too far (i=%i, lim=%i, state=%i)\n", i, m_bitset.size(), m_state);
                 return false;
             }
             break;
@@ -24,8 +26,7 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
         const uint8_t byte = m_bitset.GetByte(i);
         if (byte == 0xFF && m_bitset.test(i + 8))
         {
-            SetControl(static_cast<ControlSymbol>(m_bitset.GetNibble(i + 9)));
-            i += 13;
+            SetControl(i);
         }
         else
         {
@@ -34,6 +35,8 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
                 case State::SCHEME1:
                 {
                     const bool bit = m_bitset.test(i);
+                    if (i == 27605)  Dump(i);
+                    
                     if (bit == 0) // Raw byte
                     {
                         AddByte(m_bitset.GetByte(i + 1), result);
@@ -64,6 +67,7 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
                         if (matchCount < 2 || matchCount > 271)
                         {
                             fprintf(stderr, "matchCount (%i) out of range at pos %i\n", matchCount, i);
+                            Dump(i);
                         }
 
                         // displacement is a simple 10 bit value
@@ -93,17 +97,18 @@ bool SLDC::Extract(const uint8_t* pCompressed, size_t length, std::vector<uint8_
                 default:
                 {
                     fprintf(stderr, "Unknown SLDC state at pos %i\n", i);
+                    Dump(i);
                     return false;
                 } break;
             }
         }
     }
-
+    /*
     // We end up with 4 mystery bytes
     for (size_t i = 0; i < 4; ++i)
     {
         result.pop_back();
-    }
+    }*/
 
     return true;
 }
@@ -114,8 +119,12 @@ void SLDC::AddByte(uint8_t byte, std::vector<uint8_t>& result)
     result.push_back(byte);
 }
 
-void SLDC::SetControl(ControlSymbol control)
+void SLDC::SetControl(size_t& i)
 {
+    ControlSymbol control = static_cast<ControlSymbol>(m_bitset.GetNibble(i + 9));
+
+    //fprintf(stderr, "Set control symbol %i (i=%i)\n", control, i);
+
     switch (control)
     {
         case ControlSymbol::SCHEME1:
@@ -139,16 +148,19 @@ void SLDC::SetControl(ControlSymbol control)
             m_history.Reset();
             m_state = State::SCHEME2;
         } break;
-
-        case ControlSymbol::EOR:
+        
         case ControlSymbol::FILEMARK:
         case ControlSymbol::FLUSH:
         {
             m_state = State::SKIP;
         } break;
 
+        case ControlSymbol::EOR:
         case ControlSymbol::END:
         {
+            //m_state = State::END;
+            //assert(i == m_bitset.size());
+            //m_history.Reset();
             m_state = State::END;
         } break;
 
@@ -156,6 +168,21 @@ void SLDC::SetControl(ControlSymbol control)
         {
             m_state = State::SKIP;
             fprintf(stderr, "Unknown SLDC control symbol %i\n", control);
+            //Dump(i);
         } break;
     }
+
+    i += 13;
+}
+
+void SLDC::Dump(size_t i)
+{
+    constexpr size_t range = 48;
+    i = std::max(range, i);
+    fprintf(stderr, "i=%i -- ", i);
+    for (size_t j = i - range; j < i + range; ++j)
+    {
+        fprintf(stderr, "%s%i%s%s", i == j ? "|" : "", m_bitset.test(j) ? 1 : 0, i == j ? "|" : "", j % 8 == 0 ? " " : "");
+    }
+    fprintf(stderr, "\n");
 }
