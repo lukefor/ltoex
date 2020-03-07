@@ -40,8 +40,10 @@ You can also pipe `cat`/`dd`/`mbuffer` etc, in which case leave out the second a
 
 ## Notes
 
-Ltoex currently achieves ~150MB/s on an Ivy Bridge (v2) Xeon CPU against mostly uncompressible (Scheme 2) data. Against data with a greater compression ratio, it is likely ltoex will be the bottleneck.
+Ltoex currently achieves ~150MB/s on an Ivy Bridge (v2) Xeon CPU against mostly uncompressible (Scheme 2) data. Against 'mixed' data (a tar archive of /usr of a Debian system), it achieves approximately 70MB/s on the same hardware.
 
 Ltoex would need to be changed, probably quite significantly, for LTO-5 and above. It is only suitable for LTO-4 in its current form. However, the bug is probably fixed in IBM LTO-5 drives, so it won't be much use anyway.
 
 Only Linux is supported, but it will probably work on other platforms with similar tape drivers. MSVC is supported for debug purposes only, as Visual Studio is my dev environment of choice.
+
+Currently the only supported use case is reading tapes on an IBM LTO-4 drive that were written on an HP LTO-4 drive. Getting an HP drive to return its own raw/encrypted data is easier said than done, and IBM SLDC data does not appear to follow spec (although HP drives are able to understand it, somehow).
