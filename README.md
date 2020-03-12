@@ -30,13 +30,13 @@ stenc -f /dev/nst0 -e rawread -k /path/to/my/stenc.key -a 1 --unprotect
 #### Tar listing example:
 These examples will print the contents of a tar tape. 
 
-The only argument to `ltoex` is the path to a key file created by `stenc`, which is a 256-bit key in ascii hex digits.
+The first argument to `ltoex` is the path to a key file created by `stenc`, which is a 256-bit key in ascii hex digits. The second is an *optional* block device to read from - this must be a physical tape drive.
 
 ```
 ltoex /path/to/my/stenc.key /dev/nst0 | tar -tvf -
 ```
 
-You can also pipe `cat`/`dd`/`mbuffer` etc, in which case leave out the second argument to `ltoex`. However when piping, you are very likely to run into block size issues.
+You can also pipe `cat`/`dd`/`mbuffer` etc, in which case leave out the second argument to `ltoex`. When piping, use a block size of 2x the tape block size, and do not specify `iflag=fullblock` to `dd`. If your tape block size is larger than 2MB (2MB itself is fine and recommended), you must use the pipe interface. The pipe interface reconstructs variable block sizes heuristically, so it is potentially imperfect compared to directly reading from the drive.
 
 ## Notes
 
